@@ -1,0 +1,331 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoleName {
+  HQ_ADMIN
+  FACILITATOR
+  PARTICIPANT
+}
+
+enum GroupMembershipRole {
+  PARTICIPANT
+}
+
+enum GroupMembershipStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum ActivityType {
+  COLOUR_CARDS
+}
+
+enum ActivityStatus {
+  NOT_STARTED
+  LIVE
+  CLOSED
+}
+
+enum ParticipationStatus {
+  NOT_STARTED
+  ACTIVE
+  COMPLETED
+}
+
+enum CardColour {
+  BLUE
+  RED
+  GREEN
+  YELLOW
+}
+
+enum CardInstanceStatus {
+  ASSIGNED
+  KEPT
+  RECEIVED
+  RETURNED
+  FINALIZED
+}
+
+enum CardTransferType {
+  KEPT
+  SENT
+  ACCEPTED
+  RETURNED
+  FINALIZED
+}
+
+enum SavedCardSource {
+  SELF_KEPT
+  RECEIVED_FROM_PEER
+}
+
+enum LearningArtifactKind {
+  SAVED_CARD
+  ACTIVITY_COMPLETION
+  REFLECTION
+  RESOURCE
+  INSIGHTS_PROFILE
+  TPI_RESULT
+  LEADERSHIP_360_RESULT
+}
+
+model User {
+  id                         String                 @id @default(cuid())
+  email                      String                 @unique
+  name                       String
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  roles                      UserRole[]
+  groupMemberships           GroupMembership[]
+  facilitatorAssignments     FacilitatorAssignment[]
+  learningProfile            LearningProfile?
+  activityParticipations     ActivityParticipation[]
+  originalCardInstances      ActivityCardInstance[] @relation("OriginalAssignedCards")
+  ownedCardInstances         ActivityCardInstance[] @relation("CurrentOwnedCards")
+  sentCardInstances          ActivityCardInstance[] @relation("SentCards")
+  receivedCardInstances      ActivityCardInstance[] @relation("ReceivedCards")
+  sentTransfers              CardTransfer[]         @relation("TransferSender")
+  receivedTransfers          CardTransfer[]         @relation("TransferRecipient")
+  savedCards                 SavedCard[]
+  learningArtifacts          LearningArtifact[]
+  auditEvents                AuditEvent[]           @relation("AuditActor")
+  insightsProfiles           InsightsProfile[]
+  tpiAssessments             TPIAssessment[]
+  leadership360Assessments   Leadership360Assessment[]
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  role      RoleName
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model LearningProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Group {
+  id                      String                  @id @default(cuid())
+  name                    String
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  memberships             GroupMembership[]
+  facilitatorAssignments  FacilitatorAssignment[]
+  activitySessions        ActivitySession[]
+  auditEvents             AuditEvent[]
+}
+
+model GroupMembership {
+  id        String                @id @default(cuid())
+  groupId   String
+  userId    String
+  role      GroupMembershipRole   @default(PARTICIPANT)
+  status    GroupMembershipStatus @default(ACTIVE)
+  createdAt DateTime              @default(now())
+  removedAt DateTime?
+  group     Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model FacilitatorAssignment {
+  id             String   @id @default(cuid())
+  groupId        String
+  facilitatorId  String
+  createdAt      DateTime @default(now())
+  group          Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  facilitator    User     @relation(fields: [facilitatorId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, facilitatorId])
+}
+
+model ActivityDefinition {
+  id          String            @id @default(cuid())
+  key         String            @unique
+  name        String
+  type        ActivityType
+  description String
+  createdAt   DateTime          @default(now())
+  sessions    ActivitySession[]
+}
+
+model ActivitySession {
+  id              String                  @id @default(cuid())
+  groupId         String
+  definitionId    String
+  status          ActivityStatus          @default(NOT_STARTED)
+  startedAt       DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  group           Group                   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  definition      ActivityDefinition      @relation(fields: [definitionId], references: [id])
+  participations  ActivityParticipation[]
+  cardInstances   ActivityCardInstance[]
+  savedCards      SavedCard[]
+  learningArtifacts LearningArtifact[]
+  auditEvents     AuditEvent[]
+}
+
+model ActivityParticipation {
+  id                 String              @id @default(cuid())
+  activitySessionId  String
+  userId             String
+  status             ParticipationStatus @default(NOT_STARTED)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  activitySession    ActivitySession     @relation(fields: [activitySessionId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activitySessionId, userId])
+}
+
+model CardDefinition {
+  id         String                 @id @default(cuid())
+  colour     CardColour
+  sortOrder  Int
+  statement  String
+  createdAt  DateTime               @default(now())
+  instances  ActivityCardInstance[]
+  savedCards SavedCard[]
+
+  @@unique([colour, sortOrder])
+}
+
+model ActivityCardInstance {
+  id                       String             @id @default(cuid())
+  activitySessionId        String
+  cardDefinitionId         String
+  originalAssignedUserId   String
+  currentOwnerId           String?
+  senderId                 String?
+  recipientId              String?
+  status                   CardInstanceStatus @default(ASSIGNED)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  decidedAt                DateTime?
+  activitySession          ActivitySession    @relation(fields: [activitySessionId], references: [id], onDelete: Cascade)
+  cardDefinition           CardDefinition     @relation(fields: [cardDefinitionId], references: [id])
+  originalAssignedUser     User               @relation("OriginalAssignedCards", fields: [originalAssignedUserId], references: [id], onDelete: Cascade)
+  currentOwner             User?              @relation("CurrentOwnedCards", fields: [currentOwnerId], references: [id])
+  sender                   User?              @relation("SentCards", fields: [senderId], references: [id])
+  recipient                User?              @relation("ReceivedCards", fields: [recipientId], references: [id])
+  transfers                CardTransfer[]
+  savedCards               SavedCard[]
+
+  @@index([activitySessionId, originalAssignedUserId])
+  @@index([activitySessionId, currentOwnerId])
+}
+
+model CardTransfer {
+  id                 String           @id @default(cuid())
+  cardInstanceId     String
+  fromUserId         String?
+  toUserId           String?
+  type               CardTransferType
+  idempotencyKey     String?          @unique
+  createdAt          DateTime         @default(now())
+  cardInstance       ActivityCardInstance @relation(fields: [cardInstanceId], references: [id], onDelete: Cascade)
+  fromUser           User?            @relation("TransferSender", fields: [fromUserId], references: [id])
+  toUser             User?            @relation("TransferRecipient", fields: [toUserId], references: [id])
+}
+
+model SavedCard {
+  id                 String          @id @default(cuid())
+  userId             String
+  activitySessionId  String
+  cardInstanceId     String
+  cardDefinitionId   String
+  source             SavedCardSource
+  senderId           String?
+  colourSnapshot     CardColour
+  statementSnapshot  String
+  finalizedAt        DateTime        @default(now())
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activitySession    ActivitySession @relation(fields: [activitySessionId], references: [id], onDelete: Cascade)
+  cardInstance       ActivityCardInstance @relation(fields: [cardInstanceId], references: [id], onDelete: Cascade)
+  cardDefinition     CardDefinition  @relation(fields: [cardDefinitionId], references: [id])
+
+  @@unique([userId, activitySessionId, cardInstanceId])
+}
+
+model LearningArtifact {
+  id                    String               @id @default(cuid())
+  userId                String
+  kind                  LearningArtifactKind
+  title                 String
+  activitySessionId     String?
+  data                  Json
+  createdAt             DateTime             @default(now())
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activitySession       ActivitySession?     @relation(fields: [activitySessionId], references: [id])
+}
+
+model AuditEvent {
+  id                 String           @id @default(cuid())
+  actorUserId        String?
+  action             String
+  entityType         String
+  entityId           String?
+  groupId            String?
+  activitySessionId  String?
+  metadata           Json
+  createdAt          DateTime         @default(now())
+  actor              User?            @relation("AuditActor", fields: [actorUserId], references: [id])
+  group              Group?           @relation(fields: [groupId], references: [id])
+  activitySession    ActivitySession? @relation(fields: [activitySessionId], references: [id])
+
+  @@index([groupId, createdAt])
+  @@index([activitySessionId, createdAt])
+}
+
+model InsightsProfile {
+  id              String   @id @default(cuid())
+  userId          String
+  externalProfileId String?
+  profileDate     DateTime?
+  colourScores    Json?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TPIAssessment {
+  id              String   @id @default(cuid())
+  userId          String
+  externalResultId String?
+  completedAt     DateTime?
+  resultSummary   Json?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Leadership360Assessment {
+  id              String   @id @default(cuid())
+  userId          String
+  externalResultId String?
+  completedAt     DateTime?
+  resultSummary   Json?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
