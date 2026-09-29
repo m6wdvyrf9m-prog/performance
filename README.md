@@ -66,6 +66,24 @@ When the full brand pack is reattached locally, update those tokens rather than 
    pnpm dev
    ```
 
+## Vercel Deployment
+
+For a fresh Vercel project, import the GitHub repository, connect a PostgreSQL database, and make sure Vercel has a production environment variable named exactly:
+
+```bash
+DATABASE_URL
+```
+
+The value must be the full Postgres connection string and must start with `postgresql://` or `postgres://`.
+
+The production build runs:
+
+```bash
+prisma generate && prisma migrate deploy && prisma db seed && next build
+```
+
+That creates the Prisma client, applies migrations, seeds the demo workshop data, and builds the Next.js app.
+
 ## Seed Logins
 
 - HQ Admin: `admin@tcw.example`
