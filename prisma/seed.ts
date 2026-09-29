@@ -8,9 +8,9 @@ import {
 } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { colourCardSeeds } from "../src/lib/cards/card-data";
+import { getDatabaseUrl } from "../src/lib/database-url";
 
-const connectionString =
-  process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/team_performance_tcw?schema=public";
+const connectionString = getDatabaseUrl();
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
