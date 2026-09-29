@@ -1,13 +1,13 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getDatabaseUrl } from "./database-url";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
 function createPrismaClient() {
-  const connectionString =
-    process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/team_performance_tcw?schema=public";
+  const connectionString = getDatabaseUrl();
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }
